@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from queue import Queue
 from typing import Callable
 
-from mqtt_logger.models import EventLevel
+from app.models.log_level import LogLevel
+
+# Conditional imports for Unix/Linux systems only
+if not sys.platform.startswith("win"):
+    import select
+    import termios
+    import tty
 
 
 @dataclass(slots=True)
@@ -25,7 +31,9 @@ class RuntimeController:
         self._action_queue = action_queue
         self._prompt_text = prompt_text
         self._stop_event = threading.Event()
-        self._thread = threading.Thread(target=self._run, daemon=True, name="runtime-controls")
+        self._thread = threading.Thread(
+            target=self._run, daemon=True, name="runtime-controls"
+        )
 
     def start(self) -> None:
         self._thread.start()
@@ -48,20 +56,25 @@ class RuntimeController:
                 self._action_queue.put(ControlAction(kind="quit"))
             elif key == "c":
                 self._action_queue.put(ControlAction(kind="clear"))
-            elif key == "0":
-                self._action_queue.put(ControlAction(kind="set_min_level", value=""))
             elif key == "1":
-                self._action_queue.put(ControlAction(kind="set_min_level", value=EventLevel.NORMAL.value))
+                self._action_queue.put(
+                    ControlAction(kind="set_min_log_level", value=LogLevel.INFO.name)
+                )
             elif key == "2":
-                self._action_queue.put(ControlAction(kind="set_min_level", value=EventLevel.WARNING.value))
+                self._action_queue.put(
+                    ControlAction(kind="set_min_log_level", value=LogLevel.WARNING.name)
+                )
             elif key == "3":
-                self._action_queue.put(ControlAction(kind="set_min_level", value=EventLevel.ERROR.value))
-            elif key == "t":
-                values = self._prompt_text("sensor_type filter (comma separated, empty to clear): ").strip()
-                self._action_queue.put(ControlAction(kind="set_sensor_types", value=values))
+                self._action_queue.put(
+                    ControlAction(kind="set_min_log_level", value=LogLevel.ERROR.name)
+                )
             elif key == "n":
-                values = self._prompt_text("sensor_name filter (comma separated, empty to clear): ").strip()
-                self._action_queue.put(ControlAction(kind="set_sensor_names", value=values))
+                values = self._prompt_text(
+                    "sensor_name filter (comma separated, empty to clear): "
+                ).strip()
+                self._action_queue.put(
+                    ControlAction(kind="set_sensor_names", value=values)
+                )
 
 
 def _read_single_key_nonblocking() -> str | None:
@@ -73,18 +86,19 @@ def _read_single_key_nonblocking() -> str | None:
             return key.lower()
         return None
 
-    import select
-    import termios
-    import tty
-
-    fd = sys.stdin.fileno()
-    old_settings = termios.tcgetattr(fd)
+    # Unix/Linux specific code
     try:
-        tty.setcbreak(fd)
-        readable, _, _ = select.select([sys.stdin], [], [], 0)
+        fd = sys.stdin.fileno()
+        old_settings = termios.tcgetattr(fd)  # type: ignore
+    except (AttributeError, OSError, ValueError):
+        return None
+
+    try:
+        tty.setcbreak(fd)  # type: ignore
+        readable, _, _ = select.select([sys.stdin], [], [], 0)  # type: ignore
         if readable:
             key = sys.stdin.read(1)
             return key.lower()
         return None
     finally:
-        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore

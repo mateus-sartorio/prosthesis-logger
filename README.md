@@ -2,7 +2,7 @@
 
 A Python terminal app that listens to MQTT messages and renders beautiful logs with:
 
-- Colors by severity (`normal`, `warning`, `error`)
+- Colors by severity (`INFO`, `WARNING`, `ERROR`)
 - Timestamps
 - Runtime filtering by level, sensor type, and sensor name
 
@@ -12,7 +12,7 @@ The MQTT payload must be JSON encoded as string:
 
 ```json
 {
-  "level": "warning",
+  "level": "WARNING",
   "sensor_type": "temperature",
   "sensor_name": "temp-01"
 }
@@ -38,7 +38,7 @@ No filters are applied if you omit filter flags.
 mqtt-log-listener \
   --broker localhost \
   --topic sensors/logs \
-  --min-level warning \
+  --min-level WARNING \
   --sensor-type temperature \
   --sensor-name temp-01
 ```
@@ -47,10 +47,9 @@ mqtt-log-listener \
 
 - `h` show shortcuts help
 - `0` clear minimum level
-- `1` set minimum level = normal
-- `2` set minimum level = warning
-- `3` set minimum level = error
-- `t` set sensor type filter (comma separated)
+- `1` set minimum level = INFO
+- `2` set minimum level = WARNING
+- `3` set minimum level = ERROR
 - `n` set sensor name filter (comma separated)
 - `c` clear all filters
 - `q` quit

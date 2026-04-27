@@ -6,62 +6,61 @@ from queue import Empty, Queue
 
 import typer
 
-from mqtt_logger.config import build_config
-from mqtt_logger.filters import ThreadSafeFilters
-from mqtt_logger.models import parse_level
-from mqtt_logger.mqtt_client import MqttSettings, MqttSubscriber
-from mqtt_logger.parser import parse_event_payload
-from mqtt_logger.renderer import TerminalRenderer
-from mqtt_logger.runtime_controls import ControlAction, RuntimeController
+from app.models.log_level import LogLevel
+from app.settings import Settings
+from app.filters import ThreadSafeFilters
+from app.services.mqtt_service import MqttSettings, MqttService
+from app.parser import parse_event_payload
+from app.renderer import TerminalRenderer
+from app.runtime_controls import ControlAction, RuntimeController
+from app.utils import split_comma_separated_value
 
 app = typer.Typer(add_completion=False)
 
 
-def _csv_to_set(value: str | None) -> set[str]:
-    if not value:
-        return set()
-    return {part.strip() for part in value.split(",") if part.strip()}
-
-
 @app.command()
-def run(
-    broker: str | None = typer.Option(None, "--broker", help="MQTT broker host"),
-    port: int | None = typer.Option(None, "--port", help="MQTT broker port"),
-    topic: str | None = typer.Option(None, "--topic", help="MQTT topic subscription"),
-    username: str | None = typer.Option(None, "--username", help="MQTT username"),
-    password: str | None = typer.Option(None, "--password", help="MQTT password"),
-    min_level: str | None = typer.Option(
-        None,
-        "--min-level",
-        help="Minimum level filter: normal|warning|error",
+def main(
+    mqtt_broker: str | None = typer.Option(
+        None, "--mqtt_broker", help="MQTT broker host"
     ),
-    sensor_type: str | None = typer.Option(
-        None,
-        "--sensor-type",
-        help="Sensor type filter, comma separated",
+    mqtt_port: int | None = typer.Option(None, "--mqtt_port", help="MQTT broker port"),
+    mqtt_topic: str | None = typer.Option(
+        None, "--mqtt_topic", help="MQTT topic subscription"
     ),
-    sensor_name: str | None = typer.Option(
+    mqtt_username: str | None = typer.Option(
+        None, "--mqtt_username", help="MQTT username"
+    ),
+    mqtt_password: str | None = typer.Option(
+        None, "--mqtt_password", help="MQTT password"
+    ),
+    min_log_level: str | None = typer.Option(
         None,
-        "--sensor-name",
+        "--min-log-level",
+        help="Minimum log level filter: INFO|WARNING|ERROR",
+    ),
+    sensor_names: str | None = typer.Option(
+        None,
+        "--sensor-names",
         help="Sensor name filter, comma separated",
     ),
 ) -> None:
-    config = build_config(
-        broker=broker,
-        port=port,
-        topic=topic,
-        username=username,
-        password=password,
-        min_level=min_level,
-        sensor_type=sensor_type,
-        sensor_name=sensor_name,
+    settings = Settings(
+        mqtt_host=mqtt_broker,
+        mqtt_port=mqtt_port,
+        mqtt_username=mqtt_username,
+        mqtt_password=mqtt_password,
+        mqtt_topic=mqtt_topic,
+        mqtt_qos=1,
+        mqtt_client_id=None,
+        min_log_level=LogLevel.parse_level(min_log_level) if min_log_level else None,
+        sensor_names=split_comma_separated_value(sensor_names) if sensor_names is not None else None,
     )
 
     renderer = TerminalRenderer()
+
     filters = ThreadSafeFilters(
-        min_level=config.min_level,
-        sensor_types=config.sensor_types,
-        sensor_names=config.sensor_names,
+        min_log_level=settings.min_log_level,
+        sensor_names=settings.sensor_names,
     )
 
     raw_messages: Queue[tuple[str, str]] = Queue(maxsize=2000)
@@ -76,21 +75,23 @@ def run(
         try:
             raw_messages.put_nowait((topic_name, payload))
         except Exception:
-            renderer.print_system("Message queue full; dropping incoming message", style="bold red")
+            renderer.print_system(
+                "Message queue full; dropping incoming message", style="bold red"
+            )
 
     def prompt_text(prompt: str) -> str:
         with prompt_lock:
             renderer.print_system("Interactive input mode enabled", style="bold blue")
             return renderer.console.input(f"[bold cyan]{prompt}[/bold cyan]")
 
-    mqtt = MqttSubscriber(
+    mqtt_service = MqttService(
         settings=MqttSettings(
-            broker=config.broker,
-            port=config.port,
-            topic=config.topic,
-            username=config.username,
-            password=config.password,
-            qos=1,
+            broker=settings.mqtt_host,
+            port=settings.mqtt_port,
+            topic=settings.mqtt_topic,
+            username=settings.mqtt_username,
+            password=settings.mqtt_password,
+            qos=settings.mqtt_qos,
         ),
         on_message=on_message,
         on_system=on_system,
@@ -98,11 +99,11 @@ def run(
 
     controller = RuntimeController(action_queue=controls, prompt_text=prompt_text)
 
-    renderer.print_banner(config.broker, config.port, config.topic)
+    renderer.print_banner(settings.mqtt_host, settings.mqtt_port, settings.mqtt_topic)
     renderer.print_runtime_help()
     renderer.print_filters(filters.snapshot())
 
-    mqtt.start()
+    mqtt_service.start()
     controller.start()
 
     try:
@@ -130,7 +131,7 @@ def run(
     finally:
         stop_event.set()
         controller.stop()
-        mqtt.stop()
+        mqtt_service.stop()
         time.sleep(0.1)
         renderer.print_system("Logger stopped", style="bold yellow")
 
@@ -161,22 +162,18 @@ def _drain_controls(
             renderer.print_filters(filters.snapshot())
             continue
 
-        if action.kind == "set_min_level":
-            level = parse_level(action.value or "") if action.value else None
-            filters.set_min_level(level)
+        if action.kind == "set_min_log_level":
+            level = LogLevel.parse_level(action.value or "") if action.value else None
+            filters.set_min_log_level(level)
             label = level.value if level else "none"
-            renderer.print_system(f"Minimum level set to {label}", style="bold cyan")
-            renderer.print_filters(filters.snapshot())
-            continue
-
-        if action.kind == "set_sensor_types":
-            filters.set_sensor_types(_csv_to_set(action.value))
-            renderer.print_system("Updated sensor_type filter", style="bold cyan")
+            renderer.print_system(
+                f"Minimum log level set to {label}", style="bold cyan"
+            )
             renderer.print_filters(filters.snapshot())
             continue
 
         if action.kind == "set_sensor_names":
-            filters.set_sensor_names(_csv_to_set(action.value))
+            filters.set_sensor_names(split_comma_separated_value(action.value))
             renderer.print_system("Updated sensor_name filter", style="bold cyan")
             renderer.print_filters(filters.snapshot())
             continue
