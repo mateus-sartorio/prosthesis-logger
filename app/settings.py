@@ -15,6 +15,7 @@ class Settings:
     mqtt_topic: str
     mqtt_qos: int
     mqtt_client_id: str
+    mqtt_tls: bool
     min_log_level: LogLevel | None
     sensor_names: set[str] | None
 
@@ -37,5 +38,6 @@ class Settings:
         self.mqtt_topic = mqtt_topic or os.getenv("MQTT_TOPIC", "prothesis/logs/parsed")
         self.mqtt_qos = mqtt_qos or int(os.getenv("MQTT_QOS", "1"))
         self.mqtt_client_id = mqtt_client_id or os.getenv("MQTT_CLIENT_ID", "prothesis-logger")
+        self.mqtt_tls = os.getenv("MQTT_TLS", "false").lower() == "true"
         self.min_log_level = min_log_level if min_log_level is not None else LogLevel.parse_level(os.getenv("MIN_LOG_LEVEL", "INFO"))
         self.sensor_names = sensor_names

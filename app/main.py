@@ -92,6 +92,7 @@ def main(
             username=settings.mqtt_username,
             password=settings.mqtt_password,
             qos=settings.mqtt_qos,
+            tls_enabled=settings.mqtt_tls,
         ),
         on_message=on_message,
         on_system=on_system,

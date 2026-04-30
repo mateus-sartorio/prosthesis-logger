@@ -16,6 +16,7 @@ class MqttSettings:
     username: str | None = None
     password: str | None = None
     qos: int = 1
+    tls_enabled: bool = False
 
 
 class MqttService:
@@ -38,6 +39,8 @@ class MqttService:
         self._client.on_connect = self._on_connect
         self._client.on_disconnect = self._on_disconnect
         self._client.on_message = self._on_mqtt_message
+
+        self._configure_tls()
 
     def start(self) -> None:
         self._client.connect_async(
@@ -73,6 +76,15 @@ class MqttService:
             self._on_system("Disconnected from broker")
         else:
             self._on_system(f"Disconnected unexpectedly (reason_code={reason_code})")
+
+    def _configure_tls(self) -> None:
+        """
+        Configure TLS settings based on MQTT_TLS environment variable and port.
+
+        TLS is enabled if MQTT_TLS environment variable is set to 'true'
+        """
+        if self._settings.tls_enabled:
+            self._client.tls_set()
 
     def _on_mqtt_message(
         self, _client: mqtt.Client, _userdata, message: mqtt.MQTTMessage
