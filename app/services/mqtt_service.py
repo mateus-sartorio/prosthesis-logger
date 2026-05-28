@@ -11,7 +11,8 @@ import paho.mqtt.client as mqtt
 class MqttSettings:
     broker: str
     port: int
-    topic: str
+    logs_topic: str
+    command_logs_topic: str
     keepalive: int = 60
     username: str | None = None
     password: str | None = None
@@ -59,10 +60,11 @@ class MqttService:
             pass
 
     def _on_connect(self, client: mqtt.Client, *_args) -> None:
-        client.subscribe(self._settings.topic, qos=self._settings.qos)
-        self._on_system(
-            f"Connected and subscribed to {self._settings.topic!r} with qos={self._settings.qos}"
-        )
+        client.subscribe(self._settings.logs_topic, qos=self._settings.qos)
+        self._on_system(f"Connected and subscribed to {self._settings.logs_topic!r} with qos={self._settings.qos}")
+
+        client.subscribe(self._settings.command_logs_topic, qos=self._settings.qos)
+        self._on_system(f"Connected and subscribed to {self._settings.command_logs_topic!r} with qos={self._settings.qos}")
 
     def _on_disconnect(
         self,

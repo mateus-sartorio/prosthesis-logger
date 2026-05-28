@@ -24,8 +24,11 @@ def main(
         None, "--mqtt_broker", help="MQTT broker host"
     ),
     mqtt_port: int | None = typer.Option(None, "--mqtt_port", help="MQTT broker port"),
-    mqtt_topic: str | None = typer.Option(
-        None, "--mqtt_topic", help="MQTT topic subscription"
+    mqtt_logs_topic: str | None = typer.Option(
+        None, "--mqtt_logs_topic", help="MQTT logs topic subscription"
+    ),
+    mqtt_command_logs_topic: str | None = typer.Option(
+        None, "--mqtt_command_logs_topic", help="MQTT command logs topic subscription"
     ),
     mqtt_username: str | None = typer.Option(
         None, "--mqtt_username", help="MQTT username"
@@ -49,7 +52,8 @@ def main(
         mqtt_port=mqtt_port,
         mqtt_username=mqtt_username,
         mqtt_password=mqtt_password,
-        mqtt_topic=mqtt_topic,
+        mqtt_logs_topic=mqtt_logs_topic,
+        mqtt_command_logs_topic=mqtt_command_logs_topic,
         mqtt_qos=1,
         mqtt_client_id=None,
         min_log_level=LogLevel.parse_level(min_log_level) if min_log_level else None,
@@ -88,7 +92,8 @@ def main(
         settings=MqttSettings(
             broker=settings.mqtt_host,
             port=settings.mqtt_port,
-            topic=settings.mqtt_topic,
+            logs_topic=settings.mqtt_logs_topic,
+            command_logs_topic=settings.mqtt_command_logs_topic,
             username=settings.mqtt_username,
             password=settings.mqtt_password,
             qos=settings.mqtt_qos,
@@ -100,7 +105,7 @@ def main(
 
     controller = RuntimeController(action_queue=controls, prompt_text=prompt_text)
 
-    renderer.print_banner(settings.mqtt_host, settings.mqtt_port, settings.mqtt_topic)
+    renderer.print_banner(settings.mqtt_host, settings.mqtt_port, settings.mqtt_logs_topic)
     renderer.print_runtime_help()
     renderer.print_filters(filters.snapshot())
 
