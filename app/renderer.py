@@ -32,8 +32,7 @@ class TerminalRenderer:
             datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         )
         table.add_row(
-            f"Broker: [cyan]{broker}:{port}[/cyan]",
-            f"Topic: [magenta]{topic}[/magenta]",
+            f"Broker: [cyan]{broker}:{port}[/cyan]"
         )
         self.console.print(Panel(table, border_style="green"))
 
