@@ -121,17 +121,15 @@ def main(
             except Empty:
                 continue
 
-            event, parse_error = parse_event_payload(topic=topic_name, payload=payload)
+            events, parse_error = parse_event_payload(topic=topic_name, payload=payload)
             if parse_error is not None:
                 renderer.print_parse_error(parse_error)
                 continue
 
-            if event is None:
-                continue
-
-            if filters.matches(event):
-                with prompt_lock:
-                    renderer.print_event(event)
+            for event in events:
+                if filters.matches(event):
+                    with prompt_lock:
+                        renderer.print_event(event)
     except KeyboardInterrupt:
         renderer.print_system("Interrupted by user", style="bold yellow")
     finally:
