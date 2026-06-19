@@ -4,6 +4,7 @@ from datetime import datetime
 
 from app.models.gait_mode import GaitMode
 from app.models.log_level import LogLevel
+from app.models.power_state import PowerState
 from app.models.sensor_event import ParseError, SensorEvent
 
 
@@ -15,35 +16,47 @@ def parse_event_payload(topic: str, payload: str) -> ParsedResult:
         now = datetime.now()
 
         try:
-            gait_number = int(payload.strip())
+            command_value = int(payload.strip())
         except ValueError:
             return [], ParseError(
-                reason=f"invalid gait mode; expected an integer and got: {payload!r}",
+                reason=f"invalid command; expected an integer and got: {payload!r}",
                 topic=topic,
                 raw_payload=payload,
                 timestamp=now,
             )
 
-        gait_mode = GaitMode.parse_mode(gait_number)
-        if gait_mode is None:
-            return [], ParseError(
-                reason=(
-                    "invalid gait mode; expected one of "
-                    f"{', '.join(str(int(mode)) for mode in GaitMode)} "
-                    f"and got: {gait_number}"
-                ),
-                topic=topic,
-                raw_payload=payload,
+        gait_mode = GaitMode.parse_mode(command_value)
+        if gait_mode is not None:
+            return ([SensorEvent(
+                level=LogLevel.INFO,
+                sensor_name="Action",
+                message=f"Gait mode changed to {gait_mode.label}({command_value}).",
                 timestamp=now,
-            )
+                topic=topic,
+            )], None)
 
-        return ([SensorEvent(
-            level=LogLevel.INFO,
-            sensor_name="Action",
-            message=f"Gait mode changed to {gait_mode.label}({gait_number}).",
-            timestamp=now,
+        power_state = PowerState.parse_state(command_value)
+        if power_state is not None:
+            return ([SensorEvent(
+                level=LogLevel.INFO,
+                sensor_name="Action",
+                message=f"Power state changed to {power_state.label}({command_value}).",
+                timestamp=now,
+                topic=topic,
+            )], None)
+
+        valid_values = ", ".join(
+            str(int(value)) for value in (*GaitMode, *PowerState)
+        )
+        return [], ParseError(
+            reason=(
+                "invalid command; expected one of "
+                f"{valid_values} and got: {command_value}"
+            ),
             topic=topic,
-        )], None)
+            raw_payload=payload,
+            timestamp=now,
+        )
 
     now = datetime.now()
 
